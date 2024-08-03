@@ -1,0 +1,27 @@
+name: Deploy
+inputs:
+  key:
+    description: SSH key to use when deploying
+    required: true
+  server:
+    description: Server to which the deployment will happen
+    required: true
+  service:
+    description: Service name
+    required: true
+  wireguard:
+    description: (optional) WireGuard config to use when connecting
+    required: false
+runs:
+  using: composite
+  steps:
+    - uses: niklaskeerl/easy-wireguard-action@v2
+      if: ${{ inputs.wireguard != '' }}
+      with:
+        WG_CONFIG_FILE: ${{ inputs.wireguard }}
+    - uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ inputs.server }}
+        username: desu-deploy
+        key: ${{ inputs.key }}
+        script: ${{ inputs.service }}
