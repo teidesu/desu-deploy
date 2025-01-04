@@ -6,6 +6,9 @@ inputs:
   server:
     description: Server to which the deployment will happen
     required: true
+  serverPort:
+    description: Server port to which the deployment will happen
+    required: false
   service:
     description: Service name
     required: true
@@ -15,13 +18,28 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: niklaskeerl/easy-wireguard-action@v2
-      if: ${{ inputs.wireguard != '' }}
-      with:
-        WG_CONFIG_FILE: ${{ inputs.wireguard }}
-    - uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ inputs.server }}
-        username: desu-deploy
-        key: ${{ inputs.key }}
-        script: ${{ inputs.service }}
+    - name: Deploy
+      shell: bash
+      env:
+        SSH_KEY: ${{ inputs.key }}
+        SSH_SERVER: ${{ inputs.server }}
+        SSH_SERVICE: ${{ inputs.service }}
+        SSH_SERVER_PORT: ${{ inputs.serverPort }}
+        WIREGUARD_CONFIG: ${{ inputs.wireguard }}
+      run: |
+        set -euo pipefail
+
+        if [[ -n "$WIREGUARD_CONFIG" ]]; then
+          # based on https://github.com/niklaskeerl/easy-wireguard-action/blob/main/action.yml
+          apt update
+          apt install resolvconf wireguard
+          echo "$WIREGUARD_CONFIG" > /tmp/wg0.conf
+          sudo chmod 600 /tmp/wg0.conf
+          sudo wg-quick up ./wg0.conf
+        fi
+
+        echo "${{ inputs.key }}" > /tmp/key
+        chmod 600 /tmp/key
+
+        ssh -o StrictHostKeyChecking=no -i /tmp/key desu-deploy@$SSH_SERVER -p ${SSH_SERVER_PORT:-22} "$SSH_SERVICE"
+
