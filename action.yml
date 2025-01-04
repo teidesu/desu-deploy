@@ -9,6 +9,9 @@ inputs:
   serverPort:
     description: Server port to which the deployment will happen
     required: false
+  registryAuth:
+    description: (optional) Registry auth in the form host:user:pass
+    required: false
   service:
     description: Service name
     required: true
@@ -26,6 +29,7 @@ runs:
         SSH_SERVICE: ${{ inputs.service }}
         SSH_SERVER_PORT: ${{ inputs.serverPort }}
         WIREGUARD_CONFIG: ${{ inputs.wireguard }}
+        REGISTRY_AUTH: ${{ inputs.registryAuth }}
       run: |
         set -euo pipefail
 
@@ -38,8 +42,13 @@ runs:
           sudo wg-quick up ./wg0.conf
         fi
 
-        echo "${{ inputs.key }}" > /tmp/key
+        echo "$SSH_KEY" > /tmp/key
         chmod 600 /tmp/key
 
-        ssh -o StrictHostKeyChecking=no -i /tmp/key desu-deploy@$SSH_SERVER -p ${SSH_SERVER_PORT:-22} "$SSH_SERVICE"
+        args="container=$(echo -n "$SSH_SERVICE" | base64 -w 0)"
+        if [[ -n "$REGISTRY_AUTH" ]]; then
+          args+=" auth=$(echo -n "$REGISTRY_AUTH" | base64 -w 0)"
+        fi
+
+        ssh -o StrictHostKeyChecking=no -i /tmp/key desu-deploy@$SSH_SERVER -p ${SSH_SERVER_PORT:-22} "$args"
 
